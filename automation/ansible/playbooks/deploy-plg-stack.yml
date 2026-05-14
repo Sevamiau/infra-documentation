@@ -1,0 +1,101 @@
+---
+# PLAY 1: SETUP TARGETS
+- name: Setup Target Logging (Promtail)
+  hosts: targets
+  become: true
+  vars:
+    loki_url: "http://{{ hostvars[groups['monitor'][0]].ansible_host }}:3100/loki/api/v1/push"
+
+  tasks:
+    - name: Ensure Docker and Dependencies are Installed
+      ansible.builtin.dnf:
+        name: [docker, python3-docker]
+        state: present
+
+    - name: Start Docker
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Create Promtail Config Directory
+      ansible.builtin.file:
+        path: /etc/promtail
+        state: directory
+        mode: '0755'
+
+    - name: Create Promtail Config
+      ansible.builtin.copy:
+        dest: /etc/promtail/promtail-config.yml
+        content: |
+          server:
+            http_listen_port: 9080
+          positions:
+            filename: /tmp/positions.yaml
+          clients:
+            - url: {{ loki_url }}
+          scrape_configs:
+            - job_name: system
+              static_configs:
+              - targets: [localhost]
+                labels:
+                  host: {{ inventory_hostname }}
+                  __path__: /var/log/*log
+
+    - name: Run Promtail Container
+      community.docker.docker_container:
+        name: promtail
+        image: grafana/promtail:latest
+        state: started
+        restart_policy: always
+        volumes:
+          - /var/log:/var/log:ro
+          - /etc/promtail/promtail-config.yml:/etc/promtail/config.yml:Z
+
+# PLAY 2: DEPLOY MONITORING STACK ON MONITOR SERVER
+- name: Deploy PLG Stack (Prometheus + Loki + Grafana)
+  hosts: monitor
+  become: true
+  vars:
+    grafana_admin_password: "{{ vault_grafana_admin_password }}"
+
+  tasks:
+    - name: Create Application Directories
+      ansible.builtin.file:
+        path: "/opt/{{ item }}"
+        state: directory
+      loop: [prometheus, grafana, loki]
+
+    - name: Open Firewall Ports
+      ansible.builtin.shell: |
+        firewall-cmd --permanent --add-port={3000,9090,3100}/tcp
+        firewall-cmd --reload
+      ignore_errors: true
+
+    - name: Run Loki
+      community.docker.docker_container:
+        name: loki
+        image: grafana/loki:latest
+        state: started
+        restart_policy: always
+        network_mode: host
+
+    - name: Run Prometheus
+      community.docker.docker_container:
+        name: prometheus
+        image: prom/prometheus:latest
+        state: started
+        restart_policy: always
+        network_mode: host
+        volumes:
+          - /opt/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:Z
+
+    - name: Run Grafana
+      community.docker.docker_container:
+        name: grafana
+        image: grafana/grafana:latest
+        state: started
+        restart_policy: always
+        network_mode: host
+        env:
+          GF_SECURITY_ADMIN_PASSWORD: "{{ grafana_admin_password }}"

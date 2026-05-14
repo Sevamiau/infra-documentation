@@ -1,0 +1,77 @@
+---
+- name: Deploy Uptime Kuma with Networking & SELinux Fixes
+  hosts: servers
+  become: true
+
+  vars:
+    target_vms:
+      - name: "new-server-1"
+        ip: "192.168.10.221"
+        mac: "{{ '52:54:00' | community.general.random_mac(seed='new-server-1') }}"
+      - name: "new-server-2"
+        ip: "192.168.10.222"
+        mac: "{{ '52:54:00' | community.general.random_mac(seed='new-server-2') }}"
+
+  tasks:
+    # Docker uses bridge networking which bypasses firewalld by default.
+    # Setting bridge-nf-call-iptables=0 allows Uptime Kuma to reach KVM VMs on br10.
+    - name: Fix Docker-to-VM Bridge Communication
+      ansible.builtin.sysctl:
+        name: net.bridge.bridge-nf-call-iptables
+        value: '0'
+        state: present
+        sysctl_set: true
+
+    - name: Open Firewall Port 3001 for Dashboard
+      ansible.posix.firewalld:
+        port: 3001/tcp
+        permanent: true
+        state: enabled
+        immediate: true
+      ignore_errors: true
+
+    - name: Apply Static ARP Entries for VMs
+      ansible.builtin.shell:
+        cmd: "arp -s {{ item.ip }} {{ item.mac }} -i br10"
+      loop: "{{ target_vms }}"
+      changed_when: true
+
+    - name: Install Docker Dependencies
+      ansible.builtin.dnf:
+        name: [docker, python3-docker]
+        state: present
+
+    - name: Start Docker
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Create Uptime Kuma Data Directory
+      ansible.builtin.file:
+        path: /opt/uptime-kuma
+        state: directory
+        mode: '0755'
+
+    - name: Run Uptime Kuma Container
+      community.docker.docker_container:
+        name: uptime-kuma
+        image: louislam/uptime-kuma:1
+        state: started
+        restart_policy: always
+        recreate: true
+        published_ports:
+          - "3001:3001"
+        volumes:
+          - /opt/uptime-kuma:/app/data:Z
+
+    - name: Verify VM Connectivity
+      ansible.builtin.command:
+        cmd: "ping -c 2 {{ item.ip }}"
+      loop: "{{ target_vms }}"
+      register: ping_test
+      ignore_errors: true
+
+    - name: Status Report
+      ansible.builtin.debug:
+        msg: "Uptime Kuma dashboard available at http://10.0.0.2:3001"

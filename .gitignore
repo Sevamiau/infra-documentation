@@ -1,0 +1,4 @@
+automation/ansible/venv/
+automation/ansible/inventory.ini
+*.retry
+__pycache__/

@@ -1,0 +1,170 @@
+---
+# PLAY 1: REGISTER STATIC DHCP LEASE ON MIKROTIK
+- name: Register Pi-hole on MikroTik
+  hosts: localhost
+  tasks:
+    - name: Add Static Lease to MikroTik
+      ansible.builtin.shell:
+        cmd: >
+          ssh admin@192.168.88.1
+          "/ip dhcp-server lease add address=192.168.10.53 mac-address={{ vm_mac }} comment=\"pihole-server\""
+      vars:
+        vm_mac: "{{ '52:54:00' | community.general.random_mac(seed='pihole-server') }}"
+      register: mt_result
+      failed_when: mt_result.rc != 0 and 'already exists' not in mt_result.stderr
+
+# PLAY 2: CREATE PI-HOLE VM ON FEDORA HOST
+- name: Create Pi-hole VM on Fedora Host
+  hosts: servers
+  become: true
+  vars:
+    vm_name: "pihole-server"
+    vm_mac: "{{ '52:54:00' | community.general.random_mac(seed=vm_name) }}"
+    libvirt_pool_dir: "/var/lib/libvirt/images"
+    os_image_name: "Fedora-Cloud-Base-41.qcow2"
+    ssh_public_key: "{{ vault_ssh_public_key }}"
+
+  tasks:
+    - name: Create VM Disk
+      ansible.builtin.command:
+        cmd: "qemu-img create -f qcow2 -b {{ libvirt_pool_dir }}/{{ os_image_name }} -F qcow2 {{ libvirt_pool_dir }}/{{ vm_name }}.qcow2 20G"
+        creates: "{{ libvirt_pool_dir }}/{{ vm_name }}.qcow2"
+
+    - name: Create Cloud-Init User-Data
+      ansible.builtin.copy:
+        dest: "/tmp/pihole-user-data"
+        content: |
+          #cloud-config
+          hostname: pihole-server
+          users:
+            - name: labuser
+              groups: wheel
+              sudo: ['ALL=(ALL) NOPASSWD:ALL']
+              password: "{{ vault_admin_password | password_hash('sha512') }}"
+              lock_passwd: false
+              ssh_authorized_keys:
+                - {{ ssh_public_key }}
+
+    - name: Start VM with Native Cloud-Init
+      ansible.builtin.command: >
+        virt-install --name {{ vm_name }} --ram 2048 --vcpus 2 --os-variant fedora-unknown
+        --disk path={{ libvirt_pool_dir }}/{{ vm_name }}.qcow2,format=qcow2
+        --import --noautoconsole --network bridge=br10,model=virtio,mac={{ vm_mac }}
+        --cloud-init user-data=/tmp/pihole-user-data --autostart
+
+# PLAY 3: CONFIGURE VM AND DEPLOY PI-HOLE DOCKER CONTAINER
+- name: Configure VM and Install Pi-hole
+  hosts: pihole_server
+  become: true
+  gather_facts: false
+  vars:
+    pihole_dir: "/opt/pihole"
+    timezone: "{{ vault_timezone | default('UTC') }}"
+    web_password: "{{ vault_pihole_webpassword }}"
+
+  tasks:
+    - name: Wait for SSH
+      ansible.builtin.wait_for_connection:
+        timeout: 90
+
+    - name: Add Docker Repository
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/fedora/docker-ce.repo
+        dest: /etc/yum.repos.d/docker-ce.repo
+        mode: '0644'
+
+    - name: Install Docker Packages
+      ansible.builtin.dnf:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+
+    - name: Start and Enable Docker
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      loop:
+        - docker.socket
+        - docker
+
+    - name: Wait for Docker Socket
+      ansible.builtin.wait_for:
+        path: /var/run/docker.sock
+        timeout: 30
+
+    # Pi-hole needs port 53 — disable systemd-resolved first
+    - name: Stop and Mask systemd-resolved
+      ansible.builtin.systemd:
+        name: systemd-resolved
+        state: stopped
+        enabled: no
+        masked: yes
+      ignore_errors: yes
+
+    - name: Set Static Upstream DNS for the VM
+      ansible.builtin.copy:
+        dest: /etc/resolv.conf
+        content: |
+          nameserver 8.8.8.8
+          nameserver 1.1.1.1
+        mode: '0644'
+
+    - name: Install Firewalld
+      ansible.builtin.dnf:
+        name: [firewalld, python3-firewall]
+        state: present
+
+    - name: Start Firewalld
+      ansible.builtin.service:
+        name: firewalld
+        state: started
+        enabled: yes
+
+    - name: Open Firewall Ports for DNS and Web
+      ansible.builtin.firewalld:
+        service: "{{ item }}"
+        permanent: yes
+        state: enabled
+        immediate: yes
+      loop: [dns, http, https]
+
+    - name: Create Pi-hole Directory
+      ansible.builtin.file:
+        path: "{{ pihole_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Create docker-compose.yml
+      ansible.builtin.copy:
+        dest: "{{ pihole_dir }}/docker-compose.yml"
+        content: |
+          services:
+            pihole:
+              container_name: pihole
+              image: pihole/pihole:latest
+              ports:
+                - "53:53/tcp"
+                - "53:53/udp"
+                - "80:80/tcp"
+              environment:
+                TZ: '{{ timezone }}'
+                WEBPASSWORD: '{{ web_password }}'
+              volumes:
+                - './etc-pihole:/etc/pihole:z'
+                - './etc-dnsmasq.d:/etc/dnsmasq.d:z'
+              restart: unless-stopped
+
+    - name: Start Pi-hole
+      ansible.builtin.command: docker compose up -d
+      args:
+        chdir: "{{ pihole_dir }}"
+
+    - name: Show Access Info
+      ansible.builtin.debug:
+        msg: "Pi-hole ready at http://{{ inventory_hostname }}/admin"

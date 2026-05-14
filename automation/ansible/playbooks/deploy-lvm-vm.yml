@@ -1,0 +1,117 @@
+---
+- name: Deploy VM with Attached Data Disk (K3s / Storage Workloads)
+  hosts: servers
+  become: true
+  vars:
+    vm_name: "storage-server"
+    vm_ip: "192.168.10.61"
+    vm_mac: "{{ '52:54:00' | community.general.random_mac(seed=vm_name) }}"
+    data_disk_size: "100"
+    ssh_public_key: "{{ vault_ssh_public_key }}"
+
+  tasks:
+    # --- CLEANUP ---
+    - name: 1a. Stop old VM
+      ansible.builtin.shell: "virsh destroy {{ vm_name }} || true"
+      ignore_errors: true
+
+    - name: 1b. Delete old VM disks
+      ansible.builtin.shell: "virsh undefine {{ vm_name }} --remove-all-storage || true"
+      ignore_errors: true
+
+    - name: 1c. Clean MikroTik DHCP lease
+      become: false
+      ansible.builtin.shell:
+        cmd: >
+          ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5
+          admin@10.0.0.1 "/ip dhcp-server lease remove [find address={{ vm_ip }}]"
+      ignore_errors: true
+
+    - name: 1d. Create Data Disk
+      ansible.builtin.command:
+        cmd: "qemu-img create -f qcow2 /var/lib/libvirt/images/{{ vm_name }}-data.qcow2 {{ data_disk_size }}G"
+
+    # --- DEPLOY ---
+    - name: 2. Create Cloud-Init User-Data
+      ansible.builtin.copy:
+        dest: "/tmp/user-data-{{ vm_name }}"
+        content: |
+          #cloud-config
+          ssh_pwauth: yes
+          users:
+            - name: labuser
+              groups: wheel
+              sudo: ['ALL=(ALL) NOPASSWD:ALL']
+              lock_passwd: false
+              password: "{{ vault_admin_password | password_hash('sha512') }}"
+              ssh_authorized_keys: [ {{ ssh_public_key }} ]
+          chpasswd: { list: "labuser:{{ vault_default_password }}", expire: False }
+
+          # Partition and format the attached data disk
+          disk_setup:
+            /dev/vdb:
+              table_type: 'mbr'
+              layout: true
+              overwrite: false
+          fs_setup:
+            - label: data_storage
+              filesystem: 'ext4'
+              device: /dev/vdb
+              partition: auto
+          mounts:
+            - [ "/dev/vdb1", "/var/lib/rancher/k3s/storage", "ext4", "defaults,nofail", "0", "2" ]
+
+          # Ensure password auth is enabled for initial access
+          write_files:
+            - path: /etc/ssh/sshd_config.d/99-password-auth.conf
+              content: |
+                PasswordAuthentication yes
+
+          packages:
+            - firewalld
+            - prometheus-node-exporter
+          runcmd:
+            - [ mkdir, -p, /var/lib/rancher/k3s/storage ]
+            - [ systemctl, restart, sshd ]
+            - [ systemctl, enable, --now, firewalld ]
+            - [ firewall-cmd, --permanent, --add-port=9100/tcp ]
+            - [ firewall-cmd, --permanent, --add-port=6443/tcp ]
+            - [ firewall-cmd, --permanent, --add-port=80/tcp ]
+            - [ firewall-cmd, --permanent, --add-port=443/tcp ]
+            - [ firewall-cmd, --reload ]
+            - [ "curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644" ]
+
+    - name: 3. Create Network Config
+      ansible.builtin.copy:
+        dest: "/tmp/network-config-{{ vm_name }}"
+        content: |
+          version: 2
+          ethernets:
+            eth0:
+              match: { macaddress: "{{ vm_mac }}" }
+              addresses: [ {{ vm_ip }}/24 ]
+              gateway4: 192.168.10.1
+              nameservers: { addresses: [192.168.10.53, 1.1.1.1] }
+
+    - name: 4. Deploy VM
+      ansible.builtin.shell: |
+        virt-install --name {{ vm_name }} --ram 4096 --vcpus 2 \
+        --os-variant fedora-unknown \
+        --disk path=/var/lib/libvirt/images/{{ vm_name }}.qcow2,size=20,backing_store=/var/lib/libvirt/images/Fedora-Cloud-Base-41.qcow2 \
+        --disk path=/var/lib/libvirt/images/{{ vm_name }}-data.qcow2 \
+        --cloud-init user-data=/tmp/user-data-{{ vm_name }},network-config=/tmp/network-config-{{ vm_name }} \
+        --network bridge=br10,mac={{ vm_mac }} --import --noautoconsole
+
+    - name: 5. Register on MikroTik and Set Static ARP
+      ansible.builtin.shell: |
+        ssh -o StrictHostKeyChecking=no -o BatchMode=yes admin@10.0.0.1 \
+          "/ip dhcp-server lease add address={{ vm_ip }} mac-address={{ vm_mac }} server=dhcp-trusted" || true
+        sudo arp -s {{ vm_ip }} {{ vm_mac }} -i br10
+
+    - name: 6. Wait for SSH
+      become: false
+      delegate_to: localhost
+      ansible.builtin.wait_for:
+        host: "{{ vm_ip }}"
+        port: 22
+        timeout: 120

@@ -1,0 +1,118 @@
+---
+# PLAY 1: CONFIGURE THE GATEWAY 
+- name: Setup Nginx Reverse Proxy Gateway
+  hosts: gateway
+  become: true
+  vars:
+    monitor_ip: "192.168.10.200"
+    host_ip: "10.0.0.2"
+
+  tasks:
+    - name: Install Nginx
+      ansible.builtin.dnf:
+        name: nginx
+        state: present
+
+    - name: Allow Nginx to Proxy Network Connections (SELinux)
+      ansible.builtin.seboolean:
+        name: httpd_can_network_connect
+        state: true
+        persistent: true
+
+    - name: Open Firewall Port 80
+      ansible.posix.firewalld:
+        service: http
+        permanent: true
+        state: enabled
+        immediate: true
+
+    - name: Create Nginx Proxy Configuration
+      ansible.builtin.copy:
+        dest: /etc/nginx/conf.d/proxy.conf
+        content: |
+          # --- Grafana ---
+          server {
+              listen 80;
+              server_name grafana.lab;
+              location / {
+                  proxy_pass http://{{ monitor_ip }}:3000;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+              }
+          }
+
+          # --- Prometheus ---
+          server {
+              listen 80;
+              server_name prometheus.lab;
+              location / {
+                  proxy_pass http://{{ monitor_ip }}:9090;
+                  proxy_set_header Host $host;
+              }
+          }
+
+          # --- Uptime Kuma (requires WebSocket support) ---
+          server {
+              listen 80;
+              server_name uptime.lab;
+              location / {
+                  proxy_pass http://{{ host_ip }}:3001;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection "upgrade";
+              }
+          }
+
+    - name: Start and Enable Nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: restarted
+        enabled: true
+
+# PLAY 2: HARDEN THE MONITOR SERVER 
+- name: Harden Monitor Server
+  hosts: monitor
+  become: true
+  vars:
+    gateway_ip: "192.168.10.210"
+
+  tasks:
+    - name: Restrict Backend Ports — Allow Only Gateway
+      ansible.posix.firewalld:
+        rich_rule: 'rule family="ipv4" source address="{{ gateway_ip }}" port protocol="tcp" port="{{ item }}" accept'
+        permanent: true
+        state: enabled
+        immediate: true
+      loop: ['3000', '9090', '3100']
+
+    - name: Disable Public Access to Backend Ports
+      ansible.posix.firewalld:
+        port: "{{ item }}/tcp"
+        state: disabled
+        permanent: true
+        immediate: true
+      loop: ['3000', '9090', '3100']
+
+# PLAY 3: HARDEN THE FEDORA HOST (RESTRICT UPTIME KUMA)
+- name: Harden Fedora Host
+  hosts: servers
+  become: true
+  vars:
+    gateway_ip: "192.168.10.210"
+
+  tasks:
+    - name: Restrict Uptime Kuma Port — Allow Only Gateway
+      ansible.posix.firewalld:
+        rich_rule: 'rule family="ipv4" source address="{{ gateway_ip }}" port protocol="tcp" port="3001" accept'
+        permanent: true
+        state: enabled
+        immediate: true
+
+    - name: Disable Public Access to Uptime Kuma Port
+      ansible.posix.firewalld:
+        port: "3001/tcp"
+        state: disabled
+        permanent: true
+        immediate: true
