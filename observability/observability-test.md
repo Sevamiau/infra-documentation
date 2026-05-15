@@ -19,13 +19,13 @@ Our stack is designed to catch failures at different levels of the OSI model. He
 *   **Role:** User-facing availability.
 *   **What it tells us here:** Even though the VM is "on," the service is "down" for the end-user. The `Request timeout` suggests a network routing issue, a firewall block, or the web service itself failing to respond to external pings.
 
-![Uptime kuma test](uptime-kuma-test.png)
+![Uptime kuma test](images/uptime-kuma-test.png)
 
 ### Layer 2: Infrastructure Metrics (Grafana + Prometheus)
 *   **Role:** Health and resource consumption.
 *   **What it tells us here:** The VM is healthy. We can see steady network traffic, disk space usage, and memory allocation. Since metrics are flowing into Grafana, we know the `node-exporter` is working and the Prometheus scrape job is successful. This proves the **Network Layer is partially functional**, but the **Application Layer (Dashboard) is not**.
 
-![grafana test](grafana-test.png)
+![grafana test](images/grafana-test.png)
 
 ### Layer 3: Log Aggregation (Grafana + Loki)
 *   **Role:** Error diagnosis and "The Why."
@@ -41,7 +41,7 @@ Our stack is designed to catch failures at different levels of the OSI model. He
 *   **Role:** Physical/Virtual machine reality check.
 *   **What it tells us here:** Confirms that the hypervisor/runtime has not killed the process. The VM/Container exists and is executing code.
 
-![virsh test](virsh-test.png)
+![virsh test](images/virsh-test.png)
 
 ---
 
