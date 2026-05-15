@@ -1,98 +1,60 @@
-# Home Lab Observability Documentation: Loki & Alloy
+# Observability Stack Test.
 
-## 1. Overview
-This system provides centralized logging for the entire Fedora/QEMU infrastructure. It allows for real-time log analysis and historical searching across all Virtual Machines and the physical Host without needing to SSH into individual machines.
+This document outlines how our monitoring tools interact and how we can diagnose a False Down state using our multi-layered observability stack.
 
-![Grafana test](grafana-test.png)
+## 1. The Conflict: External vs. Internal Status
 
-### Architecture
-*   **Visualizer:** Grafana (Port 3000)
-*   **Collector (The Bucket):** Grafana Loki (Port 3100)
-*   **Agent (The Pusher):** Grafana Alloy (installed on every node)
+Currently, we are seeing a discrepancy in the reporting of the **dashboard-server (k3s-test)**.
 
----
+*   **Uptime Kuma (External Perspective):** Reports the service as **DOWN (0%)**. The message indicates a `Request timeout`. This tells us that the specific heartbeat or URL endpoint Uptime Kuma is tracking is unreachable from the monitoring node.
+*   **CLI & Grafana (Infrastructure Perspective):** The server is confirmed as **running**.
+    *   The CLI shows `k3s-test` in a `running` state (Id 13).
+    *   Grafana Metrics show an uptime of **1.9 days** with active CPU (2.2%) and RAM (54%) utilization.
 
-## 2. Infrastructure Map
-| Role | IP Address | OS | Agent |
-| :--- | :--- | :--- | :--- |
-| **Monitor Server** | `192.168.10.200` | Fedora (VM) | Loki (Docker), Alloy |
-| **Fedora Host** | `192.168.10.107` | Fedora (Physical) | Alloy |
-| **Gateway** | `192.168.10.210` | Fedora (VM) | Alloy |
-| **Pi-hole** | `192.168.10.53` | Fedora/Debian (VM) | Alloy |
-| **Jellyfin** | `192.168.10.219` | Fedora (VM) | Alloy |
-| **K3s Node** | `192.168.10.60` | Fedora (VM) | Alloy |
+## 2. Layered Observability Explanation
 
----
+Our stack is designed to catch failures at different levels of the OSI model. Here is how each image explains a different part of the story:
 
-## 3. Server Configuration (Monitor Server)
-Loki runs as a Docker container on the Monitor Server.
+### Layer 1: Availability Monitoring (Uptime Kuma)
+*   **Role:** User-facing availability.
+*   **What it tells us here:** Even though the VM is "on," the service is "down" for the end-user. The `Request timeout` suggests a network routing issue, a firewall block, or the web service itself failing to respond to external pings.
 
-*   **Port:** `3100`
-*   **Firewall:** Must allow incoming TCP on `3100` from the `192.168.10.0/24` subnet.
-    *   *Command:* `sudo firewall-cmd --permanent --add-port=3100/tcp && sudo firewall-cmd --reload`
+![Uptime kuma test](uptime-kuma-test.png)
 
----
+### Layer 2: Infrastructure Metrics (Grafana + Prometheus)
+*   **Role:** Health and resource consumption.
+*   **What it tells us here:** The VM is healthy. We can see steady network traffic, disk space usage, and memory allocation. Since metrics are flowing into Grafana, we know the `node-exporter` is working and the Prometheus scrape job is successful. This proves the **Network Layer is partially functional**, but the **Application Layer (Dashboard) is not**.
 
-## 4. Agent Configuration (Alloy)
-**Grafana Alloy** is the modern replacement for Promtail. It is installed on every VM to scrape system logs.
+![grafana test](grafana-test.png)
 
-### Installation (Fedora/RHEL)
-```bash
-sudo dnf install alloy -y
-sudo usermod -aG systemd-journal alloy
-```
+### Layer 3: Log Aggregation (Grafana + Loki)
+*   **Role:** Error diagnosis and "The Why."
+*   **What it tells us here:** This is the "Smoking Gun." The logs show critical errors:
+    *   `"Error during resource discovery"`
+    *   `"stale GroupVersion discovery: metrics.k8s.io/v1beta1"`
+    *   `"ResponseCode: 503, Body: service unavailable"`
+*   **The Diagnosis:** The K3s control plane is struggling to discover its own metrics API. The `dashboard-server` likely relies on these APIs to render. Because the internal Kubernetes API is returning a 503, the dashboard service is likely crashing or refusing connections, leading to the **Request timeout** seen in Uptime Kuma.
 
-### Configuration File (`/etc/alloy/config.alloy`)
-Each node uses this standard template. The `host` label is customized per machine.
+![Loki test](loki-test.png)
 
-```river
-// 1. Destination
-loki.write "local_loki" {
-  endpoint {
-    url = "http://192.168.10.200:3100/loki/api/v1/push"
-  }
-}
+### Layer 4: State Validation (CLI)
+*   **Role:** Physical/Virtual machine reality check.
+*   **What it tells us here:** Confirms that the hypervisor/runtime has not killed the process. The VM/Container exists and is executing code.
 
-// 2. Systemd Journal Scraper
-loki.source.journal "read_journal" {
-  forward_to = [loki.write.local_loki.receiver]
-  labels     = { job = "systemd-journal", host = "INSERT_HOSTNAME_HERE" }
-}
-
-// 3. Optional: File Scraper (Example for Nginx or Pi-hole)
-loki.source.file "app_logs" {
-  targets = [
-    { __address__ = "localhost", __path__ = "/var/log/nginx/*.log", job = "nginx", host = "INSERT_HOSTNAME_HERE" },
-  ]
-  forward_to = [loki.write.local_loki.receiver]
-}
-```
-
-### Service Management
-*   **Restart:** `sudo systemctl restart alloy`
-*   **Status:** `sudo systemctl status alloy`
-*   **Internal Debug UI:** `http://<VM_IP>:12345`
+![virsh test](virsh-test.png)
 
 ---
 
-## 5. Usage in Grafana
-Logs are queried using **LogQL** in the **Explore** tab.
+## 3. Summary of Findings
 
-### Basic Queries
-*   **See all system logs:** `{job="systemd-journal"}`
-*   **See logs for a specific VM:** `{host="gateway"}`
-*   **Search for specific text:** `{host="pihole"} |= "error"`
-*   **Monitor SSH attempts:** `{job="systemd-journal"} |= "ssh"`
+| Tool | Status | Meaning |
+| :--- | :--- | :--- |
+| **Uptime Kuma** | **DOWN** | The external endpoint is unreachable. |
+| **Grafana Metrics** | **UP** | The VM is alive and consuming resources. |
+| **Loki Logs** | **ERROR** | Internal K8s API services (metrics.k8s.io) are failing. |
+| **CLI** | **RUNNING** | The instance is powered on. |
 
----
+**Conclusion:** 
+Our observability stack is working exactly as intended. While one tool says "Down" and another says "Up," they are both correct. The **VM is Up**, but the **Service is Down**. 
 
-## 6. Maintenance & Troubleshooting
-1.  **"No Data" in Grafana:** 
-    *   Check if Alloy is running: `systemctl status alloy`.
-    *   Verify connectivity: `curl http://192.168.10.200:3100/ready` from the client VM.
-2.  **Permission Denied:** Ensure the `alloy` user is in the `systemd-journal` and `adm` groups.
-3.  **Loki Ingester Not Ready:** Restart the Loki container on the monitor server: `docker restart loki`.
 
----
-**Date Documented:** May 9, 2026
-**Status:** Operational (6/6 Nodes)
