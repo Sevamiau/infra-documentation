@@ -51,6 +51,7 @@ graph TD
     end
 
     Internet((Internet))
+    Modem[Modem - bridge mode]
 
     subgraph Office_Gateway [MikroTik Router - Fixed Public IP]
         WG[WireGuard Hub]
@@ -68,7 +69,8 @@ graph TD
 
     Laptop -- "WireGuard Tunnel" --> Internet
     Workstation -- "WireGuard Tunnel" --> Internet
-    Internet --> WG
+    Internet --> Modem
+    Modem --> WG
     WG --> FW
 
     FW --> VLAN10
