@@ -35,7 +35,7 @@ Our stack is designed to catch failures at different levels of the OSI model. He
     *   `"ResponseCode: 503, Body: service unavailable"`
 *   **The Diagnosis:** The K3s control plane is struggling to discover its own metrics API. The `dashboard-server` likely relies on these APIs to render. Because the internal Kubernetes API is returning a 503, the dashboard service is likely crashing or refusing connections, leading to the **Request timeout** seen in Uptime Kuma.
 
-![Loki test](loki-test.png)
+![Loki test](images/loki-test.png)
 
 ### Layer 4: State Validation (CLI)
 *   **Role:** Physical/Virtual machine reality check.
