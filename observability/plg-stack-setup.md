@@ -79,4 +79,4 @@ After editing: `sudo docker restart prometheus`
 curl <TARGET_IP>:9100/metrics | head -n 10
 ```
 
-![Grafana Dashboard](grafana.jpg)
+![Grafana Dashboard](images/grafana.jpg)
