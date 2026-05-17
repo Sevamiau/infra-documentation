@@ -1,4 +1,5 @@
 
+```markdown
 # Self-Hosted Infrastructure Lab
 
 ![Ansible](https://img.shields.io/badge/Ansible-EE0000?style=flat&logo=ansible&logoColor=white)
@@ -27,8 +28,6 @@ Each top-level directory is self-contained and focused on a specific concern:
 - See **`observability/`** for how logs and metrics are collected and visualised with the PLG stack.
 - Browse **`automation/ansible/`** to explore the playbooks and inventory that tie everything together.
 - Check **`incident-reports/`** for detailed write-ups of real operational problems encountered and how they were diagnosed and resolved.
-
-> **A note on storage:** Persistent data is backed by a 20 TB NAS, which provides storage for VM disk images, media libraries, and service data volumes. None of this is tracked in the repository. The documentation in `infrastructure/` describes the storage layout (LVM thin pools, qcow2 images, bind-mount paths, NAS mounts) so the setup can be reproduced, but the data itself lives outside version control.
 
 ---
 
@@ -68,27 +67,23 @@ graph TD
     end
 
     subgraph Entry [Entry Point]
-        Modem[[Movistar Modem<br/>'Bridge Mode']]
+        Modem[[Movistar Modem Mode Bridge]]
     end
 
     subgraph Storage [Storage]
         NAS[(20 TB NAS)]
     end
 
-
     %% Router Layer
     subgraph Router [Gateway: Mikrotik L009]
-        L009[L009 Routing Logic<br/>'Holds Fixed IP']
-        WG{{"WireGuard VPN<br/>(Admin Tunnel)"}}
+        L009[L009 Routing Logic]
+        WG{{"WireGuard VPN Admin Tunnel"}}
     end
-
-    %% Storage Path
-    Server -.->|NFS/SMB| NAS
 
     %% Server Layer
     subgraph Server [Fedora Server]
         PhysNIC[Physical NIC]
-        Bridge["'the bridge'<br/>(VLAN Aware)"]
+        Bridge["the bridge VLAN Aware"]
         
         subgraph VLAN10 [VLAN 10: Trusted]
             PH[Admin]
@@ -106,72 +101,67 @@ graph TD
     %% Connections
     Internet --- Modem
     Modem --- L009
-    RemoteAdmin -.->|"Encrypted Tunnel"| WG
+    RemoteAdmin -.->|Encrypted Tunnel| WG
     
     %% The Trunk Link
-    L009 ---|"Trunk Link (Tagged 10,20,30)"| PhysNIC
+    L009 ---|Trunk Link Tagged| PhysNIC
     PhysNIC --- Bridge
     
     %% VPN Landing Path
-    WG ==>|"Direct Admin Access"| VLAN10
+    WG ==>|Direct Admin Access| VLAN10
 
     %% Bridge Distribution
     Bridge --- VLAN10
     Bridge --- VLAN20
     Bridge --- VLAN30
 
+    %% Storage Path
+    Server -.->|NFS/SMB| NAS
+
     %% Styling
-    style Modem fill:#fce4ec,stroke:#880e4f,stroke-width:2px
-    style Movistar fill:#f9f,stroke:#333
+    style Modem fill:#fce4ec,stroke:#880e4f
     style RemoteAdmin fill:#2ecc71,stroke:#333
     style L009 fill:#bbf,stroke:#333
-    style WG fill:#3498db,color:#fff,stroke-width:2px
+    style WG fill:#3498db,color:#fff
     style Bridge fill:#dfd,stroke:#333,stroke-width:4px
     style VLAN10 fill:#e8f5e9,stroke:#2e7d32
     style VLAN20 fill:#fff3e0,stroke:#ef6c00
     style VLAN30 fill:#ffebee,stroke:#c62828
-    style PhysNIC fill:#eee,stroke:#333
-```
 ```
 
+## Services Architecture
 
 ```mermaid
 graph TB
     subgraph Host [Fedora Server Layer]
         direction TB
         
-        %% The Bridge
-        Bridge{{"the bridge<br/>(Virtual Switch)"}}
+        Bridge{{"the bridge Virtual Switch"}}
 
         subgraph KVM [QEMU/KVM Hypervisor Layer]
             direction LR
-            
-            %% The VMs
-            GW[<b>1. gateway-server</b><br/>Nginx Reverse Proxy]
-            PH[<b>2. pihole-server</b><br/>DNS & Filtering]
-            MON[<b>3. monitor-server</b><br/>PLG Stack + Kuma]
-            JF[<b>4. jellyfin-server</b><br/>Media Services]
-            K3S[<b>5. k3s-test</b><br/>K3s Cluster]
+            GW[gateway-server Nginx]
+            PI[pihole-server DNS]
+            MON[monitor-server PLG]
+            JF[jellyfin-server Media]
+            K3S[k3s-test Cluster]
         end
 
-        %% Connections to Bridge
         Bridge <--> GW
-        Bridge <--> PH
+        Bridge <--> PI
         Bridge <--> MON
         Bridge <--> JF
         Bridge <--> K3S
     end
 
-    %% Traffic Flow
     GW -->|Proxy Pass| MON
     GW -->|Proxy Pass| JF
     GW -->|Proxy Pass| K3S
 
-    %% Styling
-    style Host fill:#f5f5f5,stroke:#333,stroke-width:2px
-    style Bridge fill:#e1f5fe,stroke:#01579b,stroke-width:3px
+    style Host fill:#f5f5f5,stroke:#333
+    style Bridge fill:#e1f5fe,stroke:#01579b
     style GW fill:#fff9c4,stroke:#fbc02d
-    style PH fill:#ffebee,stroke:#c62828
+    style PI fill:#ffebee,stroke:#c62828
     style KVM fill:#f3e5f5,stroke:#7b1fa2
 ```
 ```
