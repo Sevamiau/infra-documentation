@@ -92,5 +92,3 @@ Logs are queried using **LogQL** in the **Explore** tab.
 3.  **Loki Ingester Not Ready:** Restart the Loki container on the monitor server: `docker restart loki`.
 
 ---
-**Date Documented:** May 9, 2026
-**Status:** Operational (6/6 Nodes)

@@ -1,4 +1,3 @@
-
 # Infrastructure Health & Alerting: Uptime Kuma
 
 ## 1. Goal
@@ -59,7 +58,3 @@ Implement a lightweight, agentless health check system that monitors the availab
 
 ---
 
-## 5. DevOps Value
-- **Single-pane observability** across the entire fleet.
-- **Decoupled resilience:** The monitoring system can report failures even if the entire VM network segment is down.
-- **ChatOps pattern:** Discord alerts demonstrate integration of infrastructure monitoring with team communication tooling.

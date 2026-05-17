@@ -1,4 +1,3 @@
-
 # Observability & Monitoring: PLG Stack
 
 ## 1. Architecture Overview
@@ -62,15 +61,6 @@ After editing: `sudo docker restart prometheus`
 
 ## 4. Grafana Dashboard
 - **Dashboard ID 1860 (Node Exporter Full):** The primary "deep dive" view for per-node performance troubleshooting.
-
----
-
-## 5. Lessons Learned & Troubleshooting
-
-- **Shell Interference:** Fedora's Fish shell can interfere with Ansible's JSON communication. For automation, target hosts should use `/usr/bin/bash` and `~/.hushlogin` to silence login banners.
-- **Package Naming:** On Fedora 41, the node exporter package is `prometheus-node-exporter`.
-- **Network Interface Names:** Use MAC-address matching in Cloud-Init `network-config` to avoid issues with dynamic interface naming (`eth0` vs `enp1s0`).
-- **Static ARP:** On a Linux bridge (`br10`), static ARP entries (`arp -s <IP> <MAC>`) on the host ensure stable connectivity between the monitoring VM and target guests.
 
 ---
 
