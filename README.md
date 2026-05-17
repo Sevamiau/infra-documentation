@@ -1,5 +1,4 @@
 
-```markdown
 # Self-Hosted Infrastructure Lab
 
 ![Ansible](https://img.shields.io/badge/Ansible-EE0000?style=flat&logo=ansible&logoColor=white)
@@ -163,5 +162,4 @@ graph TB
     style GW fill:#fff9c4,stroke:#fbc02d
     style PI fill:#ffebee,stroke:#c62828
     style KVM fill:#f3e5f5,stroke:#7b1fa2
-```
 ```
