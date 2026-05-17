@@ -10,9 +10,11 @@
 
 ## About This Project
 
-This repository documents a production-grade self-hosted infrastructure environment built to apply and demonstrate real-world Infrastructure and DevOps engineering. Every component — from VM provisioning to firewall hardening — is defined as code and follows patterns used in professional production environments.
+This repository documents a live, self-hosted infrastructure environment running on bare-metal hardware. It is built around security-first principles. Every layer, from network segmentation to service exposure, is deliberately designed and version-controlled.
 
-The infrastructure is architected as a private enterprise-grade network: a physical Fedora hypervisor runs QEMU/KVM virtual machines, a MikroTik router enforces VLAN segmentation and WireGuard VPN access, and Ansible automates the full deployment lifecycle. Each service runs in its own dedicated VM for isolation and security — including a gateway VM running Nginx as a reverse proxy. Docker contains the individual service workloads, Pi-hole handles network-wide DNS filtering and manages local DNS records for all internal services, and Jellyfin runs as a self-hosted media server. A PLG stack (Promtail, Loki, Grafana) alongside Uptime Kuma provide end-to-end observability. Incident reports document real operational problems encountered and resolved.
+A physical Fedora hypervisor runs QEMU/KVM virtual machines — each service in its own dedicated VM for isolation. A MikroTik router enforces VLAN segmentation, and WireGuard VPN provides secure remote access. Ansible automates the full deployment lifecycle from VM provisioning to service configuration.
+
+Services include an Nginx reverse proxy gateway, Pi-hole for network-wide DNS filtering, Jellyfin as a self-hosted media server, and a K3s cluster for container orchestration. The Grafana Stack (Alloy, Loki, Grafana) alongside Uptime Kuma provide end-to-end observability. Incident reports document real operational problems encountered and resolved.
 
 > **Mirror documentation.** This repository is a mirror of the configuration and documentation running on the live server. It reflects the actual state of the infrastructure as closely as possible, with configs, playbooks, and write-ups kept in sync with what is deployed in production.
 
