@@ -18,7 +18,7 @@ Services include an Nginx reverse proxy gateway, Pi-hole for network-wide DNS fi
 
 > **Mirror documentation.** This repository is a mirror of the configuration and documentation running on the live server. It reflects the actual state of the infrastructure as closely as possible, with configs, playbooks, and write-ups kept in sync with what is deployed in production.
 
-> **Work in progress.** This lab is actively evolving. Improving security hardening and service availability are the top ongoing priorities — expect to see continued work in those areas across the codebase.
+> **Actively maintained.** This lab is continuously evolving — ongoing work focuses on security hardening, service availability.
 
 ## How to Navigate This Repo
 
@@ -26,25 +26,19 @@ Each top-level directory is self-contained and focused on a specific concern:
 
 - Start with **`infrastructure/`** for an overview of how VMs are provisioned and how storage is organised.
 - Read **`networking/`** to understand the VLAN layout, WireGuard setup, and jump-host design.
-- See **`observability/`** for how logs and metrics are collected and visualised with the PLG stack.
+- See **`observability/`** for how logs and metrics are collected and visualised with the Grafana Stack (Alloy, Loki, Grafana).
 - Browse **`automation/ansible/`** to explore the playbooks and inventory that tie everything together.
 - Check **`incident-reports/`** for detailed write-ups of real operational problems encountered and how they were diagnosed and resolved.
 
 ---
 
-## Core Components
-- **Hypervisor:** Fedora Server running QEMU/KVM VMs.
-- **Automation:** Ansible playbooks for VM provisioning and service deployment.
-- **Networking:** MikroTik RouterOS with VLAN segmentation and WireGuard VPN for secure remote access.
-- **Observability:** PLG Stack (Promtail, Loki, Grafana) and Uptime Kuma for proactive monitoring.
-- **Hardware Integration:** CyberPower UPS monitoring for graceful shutdown/power management.
-
-## Tech Stack
-- **OS:** Fedora Server (host and VMs)
-- **Networking:** MikroTik (VLANs, Bridge, Firewall), WireGuard, RouterOS
-- **DevOps:** Ansible, Docker, Cloud-Init
-- **Monitoring:** Grafana, Loki, Promtail, Uptime Kuma
-- **Security:** Pi-hole (DNS Filtering), Nginx Reverse Proxy
+## Stack & Components
+- **Virtualisation:** QEMU/KVM on Fedora Server — each service runs in a dedicated VM for isolation
+- **Automation:** Ansible for full lifecycle management (provisioning, config, deployment), Cloud-Init for VM bootstrap
+- **Networking:** MikroTik RouterOS (VLANs, firewall), WireGuard VPN, Pi-hole for DNS filtering
+- **Services:** Nginx reverse proxy, Jellyfin media server, K3s cluster — containerised with Docker
+- **Observability:** Grafana Stack (Alloy, Loki, Grafana) and Uptime Kuma
+- **Hardware:** CyberPower UPS monitoring for graceful shutdown
 
 ## Repository Structure
 
@@ -52,7 +46,7 @@ Each top-level directory is self-contained and focused on a specific concern:
 .
 ├── infrastructure/        # VM provisioning, storage, K3s, reverse proxy
 ├── networking/            # WireGuard VPN, MikroTik, jump-host architecture
-├── observability/         # PLG stack (Prometheus/Loki/Grafana), Uptime Kuma
+├── observability/         # Grafana Stack (Alloy, Loki, Grafana), Uptime Kuma
 ├── automation/ansible/    # Playbooks, group_vars, and inventory for all deployments
 └── incident-reports/      # Real-world debugging and resolution write-ups
 ```
@@ -84,7 +78,7 @@ graph TD
     %% Server Layer
     subgraph Server [Fedora Server]
         PhysNIC[Physical NIC]
-        Bridge["the bridge VLAN Aware"]
+        Bridge["br0 (VLAN-Aware Bridge)"]
         
         subgraph VLAN10 [VLAN 10: Trusted]
             PH[Admin]
@@ -137,13 +131,13 @@ graph TB
     subgraph Host [Fedora Server Layer]
         direction TB
         
-        Bridge{{"the bridge Virtual Switch"}}
+        Bridge{{"br0 (Virtual Switch)"}}
 
         subgraph KVM [QEMU/KVM Hypervisor Layer]
             direction LR
             GW[gateway-server Nginx]
             PI[pihole-server DNS]
-            MON[monitor-server PLG]
+            MON[monitor-server Grafana]
             JF[jellyfin-server Media]
             K3S[k3s-test Cluster]
         end
