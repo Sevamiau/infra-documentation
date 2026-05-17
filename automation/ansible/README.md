@@ -5,6 +5,8 @@ All infrastructure is managed as code. Playbooks cover the full VM lifecycle —
 
 ## Setup
 
+A pinned Python version is used intentionally to avoid compatibility breakage from future interpreter updates.
+
 ```bash
 python3 -m venv venv
 source venv/bin/activate
