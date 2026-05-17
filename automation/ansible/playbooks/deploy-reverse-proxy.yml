@@ -1,5 +1,4 @@
 ---
-# PLAY 1: CONFIGURE THE GATEWAY 
 - name: Setup Nginx Reverse Proxy Gateway
   hosts: gateway
   become: true
@@ -71,7 +70,6 @@
         state: restarted
         enabled: true
 
-# PLAY 2: HARDEN THE MONITOR SERVER 
 - name: Harden Monitor Server
   hosts: monitor
   become: true
@@ -95,7 +93,6 @@
         immediate: true
       loop: ['3000', '9090', '3100']
 
-# PLAY 3: HARDEN THE FEDORA HOST (RESTRICT UPTIME KUMA)
 - name: Harden Fedora Host
   hosts: servers
   become: true

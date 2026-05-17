@@ -9,7 +9,6 @@
     ssh_public_key: "{{ vault_ssh_public_key }}"
 
   tasks:
-    # --- CLEANUP ---
     - name: 1a. Stop old VM
       ansible.builtin.shell: "virsh destroy {{ vm_name }} || true"
       ignore_errors: true
@@ -29,7 +28,6 @@
           "/ip dhcp-server lease remove [find address={{ vm_ip }}]"
       ignore_errors: true
 
-    # --- DEPLOY ---
     - name: 2. Create Cloud-Init User-Data
       ansible.builtin.copy:
         dest: "/tmp/user-data-{{ vm_name }}"

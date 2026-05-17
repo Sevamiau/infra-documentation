@@ -13,8 +13,6 @@
         mac: "{{ '52:54:00' | community.general.random_mac(seed='new-server-2') }}"
 
   tasks:
-    # Docker uses bridge networking which bypasses firewalld by default.
-    # Setting bridge-nf-call-iptables=0 allows Uptime Kuma to reach KVM VMs on br10.
     - name: Fix Docker-to-VM Bridge Communication
       ansible.builtin.sysctl:
         name: net.bridge.bridge-nf-call-iptables

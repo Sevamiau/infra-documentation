@@ -1,5 +1,4 @@
 ---
-# PLAY 1: REGISTER STATIC DHCP LEASE ON MIKROTIK
 - name: Register Pi-hole on MikroTik
   hosts: localhost
   tasks:
@@ -13,7 +12,6 @@
       register: mt_result
       failed_when: mt_result.rc != 0 and 'already exists' not in mt_result.stderr
 
-# PLAY 2: CREATE PI-HOLE VM ON FEDORA HOST
 - name: Create Pi-hole VM on Fedora Host
   hosts: servers
   become: true
@@ -52,7 +50,6 @@
         --import --noautoconsole --network bridge=br10,model=virtio,mac={{ vm_mac }}
         --cloud-init user-data=/tmp/pihole-user-data --autostart
 
-# PLAY 3: CONFIGURE VM AND DEPLOY PI-HOLE DOCKER CONTAINER
 - name: Configure VM and Install Pi-hole
   hosts: pihole_server
   become: true
@@ -98,7 +95,6 @@
         path: /var/run/docker.sock
         timeout: 30
 
-    # Pi-hole needs port 53 — disable systemd-resolved first
     - name: Stop and Mask systemd-resolved
       ansible.builtin.systemd:
         name: systemd-resolved

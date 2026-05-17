@@ -1,5 +1,4 @@
 ---
-# PLAY 1: SETUP TARGETS
 - name: Setup Target Logging (Promtail)
   hosts: targets
   become: true
