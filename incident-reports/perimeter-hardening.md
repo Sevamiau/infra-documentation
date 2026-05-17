@@ -1,4 +1,3 @@
-
 # Incident Report: Phase 6 — Perimeter Hardening & Zero-Trust Ingress
 
 **Architecture:** Nginx Gateway → Firewalld Rich Rules → Backend Services
@@ -26,7 +25,6 @@ The firewall configuration on the Monitor Server was completely reset. All globa
 Transitioned to a **Source-Based Access Control** model. Instead of opening ports to the world, Rich Rules specifically allow only the Gateway VM's IP.
 
 ```bash
-# Allow only the Gateway to reach monitoring ports
 firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="192.168.10.210" port port="3000" protocol="tcp" accept'
 firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="192.168.10.210" port port="9090" protocol="tcp" accept'
 firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="192.168.10.210" port port="3100" protocol="tcp" accept'

@@ -1,7 +1,5 @@
-
 # Incident Report: Uptime Kuma Reverse Proxy Failure
 
-**Status:** Resolved
 **Systems:** Fedora Host, Nginx Gateway VM, Docker (Uptime Kuma)
 
 ---
@@ -14,7 +12,7 @@
 
 ---
 
-## 2. Symptoms
+## 2. Issues 
 
 1. **502 Bad Gateway** — Nginx was running but couldn't reach the upstream (the host).
 2. **504 Gateway Timeout** — The connection was being silently dropped by the host firewall.
@@ -53,5 +51,3 @@
 
 ---
 
-## 4. Key Takeaway
-Any service that relies on persistent connections (WebSockets, Server-Sent Events) requires explicit `Upgrade` and `Connection` header forwarding in the Nginx proxy configuration. This is a common source of failure when proxying modern web dashboards.

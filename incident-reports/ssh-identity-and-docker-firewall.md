@@ -1,11 +1,6 @@
-
 # Incident Report: SSH Identity Management & Docker Firewall Bypass
 
-**Status:** Resolved
-
----
-
-## Incident 1: The "New Machine" Lockout
+## 1. Incident 1: The "New Machine" Lockout
 
 ### Symptom
 When moving management tasks from one laptop to another, Ansible returned `Permission denied (publickey,...)` and marked all VMs as `UNREACHABLE`, despite the playbook being syntactically correct.
@@ -22,7 +17,7 @@ A manual "identity handshake" was performed to add the new machine's public key 
 
 ---
 
-## Incident 2: The Docker Firewall Bypass
+## 2. Incident 2: The Docker Firewall Bypass
 
 ### Symptom
 Security testing via `curl` from a non-whitelisted machine successfully reached Grafana (Port 3000) directly, **even though** `firewalld` rich rules were configured to only allow the Gateway IP.
@@ -35,13 +30,10 @@ The architecture was shifted from Docker Bridge Mode to **Host Networking Mode**
 
 **Change in Ansible playbook:**
 ```yaml
-# Before:
 published_ports:
   - "3000:3000"
 
-# After:
 network_mode: host
-# (No published_ports needed — container shares the host's network stack)
 ```
 
 **Effect:** Containers now share the Host's network stack directly. All traffic must pass through `firewalld` Rich Rules before reaching any container process.
@@ -57,3 +49,5 @@ Three tests confirmed the hardened environment:
 | Direct attack | Laptop | Monitor:3000 | `curl -I --connect-timeout 5 http://192.168.10.200:3000` | `Connection timed out` ✅ |
 | Trusted path | Laptop | `grafana.lab` | Browser | `200 OK` ✅ |
 | Port scan | Laptop | Monitor:3000 | `nmap -p 3000 192.168.10.200` | `State: Filtered` ✅ |
+
+---

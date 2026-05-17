@@ -11,7 +11,7 @@ During the deployment of a Fedora Cloud 41 VM using Ansible, the system was succ
 
 ---
 
-## 2. Symptoms
+## 2. Issues 
 - **SSH Failure:** `ssh labuser@192.168.10.220` returned `Permission denied`.
 - **Console Failure:** `virsh console new-server` showed a login prompt, but the user was not recognized.
 - **MikroTik State:** IP was successfully bound in DHCP leases — network connectivity was functional.
@@ -72,17 +72,9 @@ rm /var/lib/libvirt/images/<vm>.qcow2
 
 ### Correct SSH Connection
 ```bash
-# Remove stale host key fingerprint
 ssh-keygen -R 192.168.10.220
 
-# Connect with the private key (no .pub extension)
 ssh -i ~/.ssh/id_ed25519 labuser@192.168.10.220
 ```
 
 ---
-
-## 6. Lessons Learned
-1. **Prefer Native Helpers:** Use `virt-install --cloud-init` on Fedora/RHEL to avoid SELinux permission pitfalls with manual ISO creation.
-2. **First Boot is Final:** Always delete the existing `.qcow2` disk when testing Cloud-Init changes.
-3. **Always Add Console Passwords:** Include a temporary hashed password in Cloud-Init for emergency `virsh console` debugging.
-4. **Private vs Public Key:** Ensure the SSH client points to the private key (no extension), not the public key (`.pub`).
