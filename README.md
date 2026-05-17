@@ -134,6 +134,8 @@ graph TD
 ```
 ```
 
+
+```mermaid
 graph TB
     subgraph Host [Fedora Server Layer]
         direction TB
@@ -171,3 +173,4 @@ graph TB
     style GW fill:#fff9c4,stroke:#fbc02d
     style PH fill:#ffebee,stroke:#c62828
     style KVM fill:#f3e5f5,stroke:#7b1fa2
+```
