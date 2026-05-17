@@ -54,7 +54,3 @@ server 192.168.10.221 max_fails=3 fail_timeout=30s;
 
 ---
 
-## Why This Matters for a Portfolio
-1. **Terminology:** Using terms like "Stateful," "Ingress," "L7 Traffic," and "Bootstrap" demonstrates fluency in cloud-native vocabulary.
-2. **Conceptual Thinking:** Shows that **architecture is a concept**, not a specific cloud vendor's product — transferable between providers.
-3. **Traffic Visualization:** Demonstrates understanding of how a packet travels from the perimeter router, through a proxy, and into a backend service.
