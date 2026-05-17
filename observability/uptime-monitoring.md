@@ -50,11 +50,5 @@ Implement a lightweight, agentless health check system that monitors the availab
 - **Port 22 (SSH):** Monitored on all VMs.
 - **Port 80/443:** Reserved for web applications.
 
-### Alerting Pipeline
-**Discord Webhooks** serve as the notification engine.
-
-- **Trigger:** Service down for > 60 seconds.
-- **Payload:** Discord message with server name and exact error (e.g., `Request Timeout`).
-
 ---
 
